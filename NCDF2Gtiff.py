@@ -10,12 +10,14 @@ Created on Fri Jan 12 16:36:17 2018
 """
 
 import os, gdal
-import netCDF4
+
+import xarray as xr
 from pandas import to_datetime as t_dt
-#import multiprocessing
 from dask.distributed import Client
 import functools
-#import xarray as xr
+import numpy as np
+
+#path=r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"
 path = "/g/data3/xg9/vspi"#r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"#r"E:\temp1"#insert fullpath where ncdf are contained i.e. r"E:\ncdffolder"
 names = [f for f in os.listdir(path) if f.endswith('.nc')]
 out_fld = os.path.join(path, "tiff")
@@ -49,10 +51,11 @@ def save(driver, geot, proj, ds, naming, sx, sy, outfolder=path, dtype=gdal.GDT_
                 gdal.GDT_CFloat64
         - nodata : value assigned to nodata pixels.
     """
-    fullpath=os.path.join(out_fld, naming)
+    fullpath = os.path.join(out_fld, naming)
     new_tiff = driver.Create(fullpath, sx, sy, 1, dtype)
     new_tiff.SetGeoTransform(geot)
     new_tiff.SetProjection(proj)
+    ds[np.isnan(ds)] = -999
     new_tiff.GetRasterBand(1).WriteArray(ds)
     new_tiff.GetRasterBand(1).SetNoDataValue(nodata)
     new_tiff.FlushCache() 
@@ -79,12 +82,12 @@ def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4'
     """
     identification = name.split(".")[0] #change as needed, it is the naming id from the ncdf. it will remain the same for all 
     net = os.path.join(path,name)
-    net1 = netCDF4.Dataset(net)
-    ncv = net1.variables
-    time = ncv['time'][:]
-    date = []
-    for t in time:
-        date.append(netCDF4.num2date(t, 'seconds since 1970-01-01 00:00:00', calendar = 'standard'))
+    ncv = xr.open_dataset(net)
+#    net1 = netCDF4.Dataset(net)
+#    ncv = net1.variables
+    time = ncv.time.values#['time'][:]
+    date = [t_dt(f) for f in time]
+
     ds_ph = gdal.Open('NETCDF:"'+ net+ '":{}'.format([f for f in variables_names.keys()][0]))
 #    ds_ph = gdal.Open('NETCDF:"'+ net+ '":__xarray_dataarray_variable__')
     sx = ds_ph.RasterXSize
@@ -103,10 +106,10 @@ def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4'
     for i in range(len(date)):
         if (date[i] > date_min) & (date[i] < date_max):
             print(date[i])
-            for key, val in variables_names.items():
+            for key, val in vn.items():
                 try:
                     filename = "{}_{}_{}.tif".format(identification, date[i].strftime("%Y-%m-%d-%M-%S"), val)
-                    ds = ncv[key][i,:,:]
+                    ds = ncv[key].isel(time=i).values
                     save(driver, geot, proj, ds, filename, sx, sy)
                 except:
                     print("problem with {}__{}".format(name,date[i])) 
@@ -114,7 +117,7 @@ def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4'
 if __name__=="__main__":
     # on py36 us following (from https://stackoverflow.com/a/45720872/5326322)
 #    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
-    vn = {"__xarray_dataarray_variable__": "VSPI"}
+    vn = {"VSPI": "VSPI"}
     
     client = Client()
     dt = ["01/01/2004","31/12/2018"]
