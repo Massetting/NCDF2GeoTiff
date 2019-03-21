@@ -18,9 +18,11 @@ import functools
 import numpy as np
 
 #path=r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"
-path = "/g/data3/xg9/vspi"#r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"#r"E:\temp1"#insert fullpath where ncdf are contained i.e. r"E:\ncdffolder"
-names = [f for f in os.listdir(path) if f.endswith('.nc')]
-out_fld = os.path.join(path, "tiff")
+path = "/g/data3/xg9/vspi/pickering_brooke"#r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"#r"E:\temp1"#insert fullpath where ncdf are contained i.e. r"E:\ncdffolder"
+#names = [f for f in os.listdir(path) if f.endswith('.nc')]
+names = [f for f in os.listdir(path) if f.endswith(".nc")]#["LS8_14_-43_cabbage_tree8_cloud_lt4pc_VSPI.nc"] # modified for cabbage tree
+out_fld = os.path.join(path, "tiff") # modified for cabbage tree
+#out_fld = os.path.join(out_fla, path.split(os.sep)[-1])
 if not os.path.isdir(out_fld):
     os.makedirs(out_fld)
 
@@ -108,7 +110,7 @@ def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4'
             print(date[i])
             for key, val in vn.items():
                 try:
-                    filename = "{}_{}_{}.tif".format(identification, date[i].strftime("%Y-%m-%d-%M-%S"), val)
+                    filename = "{}_{}_{}.tif".format(date[i].strftime("%Y-%m-%d"),identification, val)
                     ds = ncv[key].isel(time=i).values
                     save(driver, geot, proj, ds, filename, sx, sy)
                 except:
@@ -120,7 +122,7 @@ if __name__=="__main__":
     vn = {"VSPI": "VSPI"}
     
     client = Client()
-    dt = ["01/01/2004","31/12/2018"]
+    dt = ["01/01/2005","31/12/2018"]
     j=functools.partial(unpack, variables_names=vn, dates=dt)
     a=client.map(j,names)  
     for we in a:
