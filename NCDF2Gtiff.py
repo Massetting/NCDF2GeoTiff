@@ -105,10 +105,10 @@ def unpack(name, destination, variables_names={'blue':'b1','green':'b2','red':'b
                     ds = ncv[key].isel(time=i).values
                     save(driver, geot, proj, ds, filename, sx, sy, destination)
                     with open(os.path.join(path,"log.txt"),'a') as log:
-                        log.write(f"{dt.datetime.now()}: {filename}      saved successfully")
+                        log.write(f"{dt.datetime.now()}: {filename}      saved successfully\n")
                 except:
                     with open(os.path.join(path,"log.txt"),'a') as log:
-                        log.write(f"{dt.datetime.now()}: PROBLEM WITH {filename}")
+                        log.write(f"{dt.datetime.now()}: PROBLEM WITH {filename}\n")
 #                    print("problem with {}__{}".format(name,date[i])) 
 
 if __name__=="__main__":
@@ -135,10 +135,10 @@ if __name__=="__main__":
     if not os.path.isdir(out_fld):
         os.makedirs(out_fld)
         with open(os.path.join(path,"log.txt"),'a') as log:
-            log.write(f"{dt.datetime.now()}: Created container folder for tiff")
+            log.write(f"{dt.datetime.now()}: Created container folder for tiff\n")
     vn = {"VSPI": "VSPI"}
     with open(os.path.join(path,"log.txt"),'a') as log:
-        log.write(f"{dt.datetime.now()}: Starting tiff export at {out_fld}\n ORIGIN FILES:")
+        log.write(f"{dt.datetime.now()}: Starting tiff export at {out_fld}\n ORIGIN FILES:\n ###")
         for ncdf in names: 
             log.write(ncdf)
     client = Client()
