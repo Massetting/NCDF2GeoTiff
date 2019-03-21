@@ -8,25 +8,18 @@ Created on Fri Jan 12 16:36:17 2018
 # Script to export spatial datasets into GeoTiff from netcdf
 # =============================================================================
 """
-
-import os, gdal
-
+__version__ = "1.0"
+import os 
+import gdal
 import xarray as xr
 from pandas import to_datetime as t_dt
 from dask.distributed import Client
 import functools
 import numpy as np
+import argparse
+import datetime as dt
 
-#path=r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"
-path = "/g/data3/xg9/vspi/pickering_brooke"#r"C:\Users\User\Documents\PhD Documents\Scripts\compute_VSPI\test\out"#r"E:\temp1"#insert fullpath where ncdf are contained i.e. r"E:\ncdffolder"
-#names = [f for f in os.listdir(path) if f.endswith('.nc')]
-names = [f for f in os.listdir(path) if f.endswith(".nc")]#["LS8_14_-43_cabbage_tree8_cloud_lt4pc_VSPI.nc"] # modified for cabbage tree
-out_fld = os.path.join(path, "tiff") # modified for cabbage tree
-#out_fld = os.path.join(out_fla, path.split(os.sep)[-1])
-if not os.path.isdir(out_fld):
-    os.makedirs(out_fld)
-
-def save(driver, geot, proj, ds, naming, sx, sy, outfolder=path, dtype=gdal.GDT_Int16, nodata=-999):
+def save(driver, geot, proj, ds, naming, sx, sy, outfolder, dtype=gdal.GDT_Int16, nodata=-999):
     """
     ARGS:
 
@@ -64,7 +57,7 @@ def save(driver, geot, proj, ds, naming, sx, sy, outfolder=path, dtype=gdal.GDT_
     new_tiff = None
 
         
-def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4','swir1':'b5','swir2':'b7'}, dates=False):
+def unpack(name, destination, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4','swir1':'b5','swir2':'b7'}, dates=False):
     """
 # =============================================================================
      unpack opens a netcdf, reads the metatada and calls save method. 
@@ -85,9 +78,7 @@ def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4'
     identification = name.split(".")[0] #change as needed, it is the naming id from the ncdf. it will remain the same for all 
     net = os.path.join(path,name)
     ncv = xr.open_dataset(net)
-#    net1 = netCDF4.Dataset(net)
-#    ncv = net1.variables
-    time = ncv.time.values#['time'][:]
+    time = ncv.time.values
     date = [t_dt(f) for f in time]
 
     ds_ph = gdal.Open('NETCDF:"'+ net+ '":{}'.format([f for f in variables_names.keys()][0]))
@@ -110,23 +101,51 @@ def unpack(name, variables_names={'blue':'b1','green':'b2','red':'b3','nir':'b4'
             print(date[i])
             for key, val in vn.items():
                 try:
-                    filename = "{}_{}_{}.tif".format(date[i].strftime("%Y-%m-%d"),identification, val)
+                    filename = "{}_{}_{}.tif".format(date[i].strftime("%Y-%m-%d"), identification, val)
                     ds = ncv[key].isel(time=i).values
-                    save(driver, geot, proj, ds, filename, sx, sy)
+                    save(driver, geot, proj, ds, filename, sx, sy, destination)
+                    with open(os.path.join(path,"log.txt"),'a') as log:
+                        log.write(f"{dt.datetime.now()}: {filename}      saved successfully")
                 except:
-                    print("problem with {}__{}".format(name,date[i])) 
+                    with open(os.path.join(path,"log.txt"),'a') as log:
+                        log.write(f"{dt.datetime.now()}: PROBLEM WITH {filename}")
+#                    print("problem with {}__{}".format(name,date[i])) 
 
 if __name__=="__main__":
-    # on py36 us following (from https://stackoverflow.com/a/45720872/5326322)
-#    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
+    parser = argparse.ArgumentParser(prog="NCDF2Gtiff", description=
+                                     'Converts a netcdf variable(s) in a date range into single geotiff files')
+    #TODO! add the argument for the variables. I do not need it now as I only extract the same 1 variable
+    parser.add_argument('-n', dest="site", default=None, type=str,
+                        help='''Site name of the location. 
+                        The default behaviour expects to have the netcdf files 
+                        at os.path.join("/g/data3/xg9/vspi", site)''')
+    parser.add_argument('--date-range', dest="dates", type=str, nargs=2 ,
+                        help="""date range. Provide two dates in format dd/mm/yyyy
+                            first the start date and then the end date 
+                            example :
+                                --date-range "01/01/2005" "31/12/2018"
+                                """)
+    parser.add_argument('--version', action='version', version=__version__)
+    jj = parser.parse_args()
+    site = jj.site
+    dates = jj.dates
+    path = os.path.join("/g/data3/xg9/vspi", site)
+    names = [f for f in os.listdir(path) if f.endswith(".nc")]
+    out_fld = os.path.join(path, "tiff")
+    if not os.path.isdir(out_fld):
+        os.makedirs(out_fld)
+        with open(os.path.join(path,"log.txt"),'a') as log:
+            log.write(f"{dt.datetime.now()}: Created container folder for tiff")
     vn = {"VSPI": "VSPI"}
-    
+    with open(os.path.join(path,"log.txt"),'a') as log:
+        log.write(f"{dt.datetime.now()}: Starting tiff export at {out_fld}\n ORIGIN FILES:")
+        for ncdf in names: 
+            log.write(ncdf)
     client = Client()
-    dt = ["01/01/2005","31/12/2018"]
-    j=functools.partial(unpack, variables_names=vn, dates=dt)
-    a=client.map(j,names)  
+#    dt = ["01/01/2005","31/12/2018"]
+    j=functools.partial(unpack, destination=path, variables_names=vn, dates=dates)
+    a=client.map(j, names)  
     for we in a:
         we.result()
-#uncomment below and comment above not to use multiprocessing. 
-#    for n in names:
-#        unpack(n)
+    with open(os.path.join(path,"log.txt"),'a') as log:
+        log.write(f"{dt.datetime.now()}: Completed tiff export")
